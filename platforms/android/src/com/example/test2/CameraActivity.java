@@ -4,15 +4,18 @@ package com.example.test2;
  * Created by guswk on 2016-02-13.
  */
 
-import android.content.Context;
-import android.net.Uri;
-import android.os.Bundle;
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
 import android.graphics.PixelFormat;
 import android.hardware.Camera;
+import android.hardware.Camera.AutoFocusCallback;
+import android.net.Uri;
+import android.os.Bundle;
 import android.os.Environment;
-import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
@@ -21,6 +24,8 @@ import android.widget.Toast;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
@@ -45,7 +50,7 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
         button.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                camera.takePicture(null, null, jpegCallback);
+                camera.autoFocus(mAutoFocus);
             }
         });
 
@@ -62,7 +67,11 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
 
             @Override
             public void onPictureTaken(byte[] data, Camera camera) {
-                str = savePicture(data);
+                try {
+                    str = savePicture(data);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
                 refreshCamera();
 
                 Intent intent = new Intent(CameraActivity.this, ResultActivity.class);
@@ -89,6 +98,16 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
         } catch (Exception e) {
         }
     }
+
+    AutoFocusCallback mAutoFocus = new AutoFocusCallback() {
+
+        public void onAutoFocus(boolean success, Camera camera) {
+
+            button.setEnabled(success);
+
+            camera.takePicture(null, null, jpegCallback);
+        }
+    };
 
     @Override
     protected void onDestroy() {
@@ -127,7 +146,7 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
         camera = null;
     }
 
-    public String savePicture(byte[] data) {
+    public String savePicture(byte[] data) throws IOException {
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMddhhmmss");
         String date = dateFormat.format(new Date());
         String photoFile = "Picture_" + date + ".jpg";
@@ -141,19 +160,21 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
 
         File pictureFile = new File(filename);
 
-        try {
-            FileOutputStream fos = new FileOutputStream(pictureFile);
-            fos.write(data);
-            fos.close();
-            Context context = getApplicationContext();
-            context.sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(pictureFile)));
-            Toast.makeText(this, "New Image saved:" + photoFile, Toast.LENGTH_LONG).show();
+        Bitmap bmp = BitmapFactory.decodeByteArray(data, 0, data.length);
+        Matrix m = new Matrix();
+        m.setRotate(90, (float) bmp.getWidth(), (float) bmp.getHeight());
+        Bitmap rotateBitmap = Bitmap.createBitmap(bmp, 0, 0, bmp.getWidth(), bmp.getHeight(), m, false);
+        bmp.recycle();
 
-            return filename;
-        } catch (Exception error) {
-            Log.d("File not saved: ", error.getMessage());
-            Toast.makeText(this, "Image could not be saved.", Toast.LENGTH_LONG).show();
-            return null;
-        }
+        File file = new File(filename);
+        OutputStream outStream = new FileOutputStream(file);
+        rotateBitmap.compress(Bitmap.CompressFormat.JPEG, 100, outStream);
+        outStream.close();
+
+        Context context = getApplicationContext();
+        context.sendBroadcast(new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(pictureFile)));
+        Toast.makeText(this, "New Image saved:" + photoFile, Toast.LENGTH_LONG).show();
+
+        return filename;
     }
 }
