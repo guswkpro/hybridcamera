@@ -35,7 +35,11 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
     SurfaceView surfaceView;
     SurfaceHolder surfaceHolder;
     Button button;
+    Button flash;
+    Button change;
     String str;
+    int mCameraFacing = Camera.CameraInfo.CAMERA_FACING_BACK ;
+    String camFlash = "torch";
 
     @SuppressWarnings("deprecation")
     Camera.PictureCallback jpegCallback;
@@ -51,6 +55,56 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
             @Override
             public void onClick(View v) {
                 camera.autoFocus(mAutoFocus);
+            }
+        });
+        flash = (Button) findViewById(R.id.flash);
+        flash.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (camFlash == "off") {
+                    camFlash = "on";
+                    Camera.Parameters param = camera.getParameters();
+                    param.setFlashMode(camFlash);
+                    camera.setParameters(param);
+                    camera.startPreview();
+                } else {
+                    camFlash = "off";
+                    Camera.Parameters param = camera.getParameters();
+                    param.setFlashMode(camFlash);
+                    camera.setParameters(param);
+                    camera.startPreview();
+                }
+            }
+        });
+        change = (Button) findViewById(R.id.change);
+        change.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                camera.stopPreview();
+
+                //NB: if you don't release the current camera before switching, you app will crash
+                camera.release();
+
+                //swap the id of the camera to be used
+                if (mCameraFacing == Camera.CameraInfo.CAMERA_FACING_BACK) {
+                    mCameraFacing = Camera.CameraInfo.CAMERA_FACING_FRONT;
+                } else {
+                   mCameraFacing = Camera.CameraInfo.CAMERA_FACING_BACK;
+                }
+                camera = Camera.open(mCameraFacing);
+                camera.stopPreview();
+                Camera.Parameters param = camera.getParameters();
+                param.setFlashMode(camFlash);
+                camera.setDisplayOrientation(90);
+                camera.setParameters(param);
+
+                try {
+                    camera.setPreviewDisplay(surfaceHolder);
+                    camera.startPreview();
+                } catch (Exception e) {
+                    System.err.println(e);
+                    return;
+                }
             }
         });
 
@@ -122,6 +176,7 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
         camera = Camera.open();
         camera.stopPreview();
         Camera.Parameters param = camera.getParameters();
+        param.setFlashMode(camFlash);
         camera.setDisplayOrientation(90);
         camera.setParameters(param);
 
@@ -162,7 +217,12 @@ public class CameraActivity extends Activity implements SurfaceHolder.Callback {
 
         Bitmap bmp = BitmapFactory.decodeByteArray(data, 0, data.length);
         Matrix m = new Matrix();
-        m.setRotate(90, (float) bmp.getWidth(), (float) bmp.getHeight());
+        if (mCameraFacing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
+            m.setRotate(270, (float) bmp.getWidth(), (float) bmp.getHeight());
+        } else {
+            m.setRotate(90, (float) bmp.getWidth(), (float) bmp.getHeight());
+        }
+
         Bitmap rotateBitmap = Bitmap.createBitmap(bmp, 0, 0, bmp.getWidth(), bmp.getHeight(), m, false);
         bmp.recycle();
 
